@@ -124,7 +124,7 @@ export function useBundlePurchase({
           const orderId = generateOrderId();
           
           // Create order record
-          const { error: orderError } = await supabase
+          const { data: orderData, error: orderError } = await supabase
             .from('orders')
             .insert({
               user_id: user.id,
@@ -139,12 +139,57 @@ export function useBundlePurchase({
                 paystack_reference: response.reference,
                 payment_status: 'success',
               },
-            });
+            })
+            .select()
+            .single();
 
           if (orderError) {
             console.error('Error creating order:', orderError);
-            toast.error('Payment successful but failed to create order');
+            console.error('Order error details:', JSON.stringify(orderError, null, 2));
+            console.error('Order data attempted:', {
+              user_id: user.id,
+              order_id: orderId,
+              network: network,
+              msisdn: cleanPhone,
+              package: bundle.display_name,
+              amount: bundle.price_ghc,
+            });
+            
+            // Check if it's an RLS policy error
+            if (orderError.code === '42501' || orderError.message?.includes('policy')) {
+              toast.error('Permission denied. Please check RLS policies in Supabase.');
+            } else {
+              toast.error(`Payment successful but failed to create order: ${orderError.message}`);
+            }
             return;
+          }
+
+          console.log('Order created successfully:', orderData);
+
+          // Send bundle purchase confirmation email
+          try {
+            const { sendBundlePurchaseEmail } = await import('@/lib/email');
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('full_name')
+              .eq('id', user.id)
+              .single();
+
+            if (profile) {
+              await sendBundlePurchaseEmail({
+                fullName: profile.full_name || user.email?.split('@')[0] || 'Customer',
+                email: user.email || '',
+                orderId: orderId,
+                network: network,
+                package: bundle.display_name,
+                phoneNumber: cleanPhone,
+                amount: bundle.price_ghc,
+                status: 'pending',
+              });
+            }
+          } catch (emailError) {
+            // Don't fail purchase if email fails
+            console.error('Failed to send bundle purchase email:', emailError);
           }
 
           // TODO: Here you would call your telecom API to actually purchase the bundle
