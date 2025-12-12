@@ -428,6 +428,4 @@ export default function Transactions() {
       </main>
     );
   }
-  
-  export default Transactions;
 
