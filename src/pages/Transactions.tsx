@@ -426,6 +426,12 @@ export default function Transactions() {
           </TabsContent>
         </Tabs>
       </main>
+<<<<<<< HEAD
     );
   }
+=======
+    </div>
+  );
+}
+>>>>>>> e213daa1b7e8a8e58369b4e2ff7b60763c6d39c3
 
